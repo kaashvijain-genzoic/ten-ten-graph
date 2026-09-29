@@ -109,22 +109,25 @@ processes:
       limit: 50
       required: true
       as: zomato_rows
-    instruction: 'Explain what moved this week for each store on Zomato, and why.
+    instruction: 'Analyse this week''s sales for each store on Zomato and identify the likely causes.
 
-      `zomato_rows` has one row per store on Zomato (plus ''All stores'' = the whole Zomato channel).
-      *_CUR is the latest week, *_PREV the week before and *_BASE the 4-week average, all scaled to the
-      same number of days, so they compare directly. SPEND_DAY, ROI, IMPR_DAY and M2O are Zomato marketing
-      for the latest marketing week vs the one before, per day. COMPLAINTS, REVIEWS, RATING and RAIN_DAYS
-      are for the store; OCCASIONS are holidays in each week.
+      `zomato_rows` holds one row per store on Zomato, plus an "All stores" row for the channel total.
+      Suffixes: _CUR is the latest week, _PREV the preceding week and _BASE the 4-week average; all are
+      scaled to the same number of days and are directly comparable. SPEND_DAY, ROI, IMPR_DAY and M2O
+      are per-day Zomato marketing figures for the latest marketing week and the week before. COMPLAINTS,
+      REVIEWS, RATING and RAIN_DAYS are store-level; OCCASIONS lists the holidays in each week.
 
-      Work out the changes yourself from these columns. Don''t make anything up, especially numbers: only
-      use figures from `zomato_rows` or simple arithmetic on them, and show the figures you used. Only
-      cite causes you can see in the rows.
+      Derive all changes from these columns. Use only figures present in `zomato_rows` or obtained from
+      them by simple arithmetic, cite the figures used, and attribute a cause only where the data supports
+      it.
 
-      Return both inside "outputs": zomato_findings = a list of (rank, where, change, cause_type, likely_cause,
-      suggested_action) for the rows that matter most (up to 8), and zomato_summary = a short summary.
-      `change` is short text such as "<x>% vs baseline, orders <y>%"; cause_type is DEMAND, SUPPLY_OPS,
-      MIXED or UNKNOWN.'
+      Return both results inside "outputs". zomato_findings: up to 8 rows for the most significant moves,
+      each with rank (1 = most important), store, trend (UP, DOWN or FLAT), sales_baseline, sales_last_week
+      and sales_this_week (Rs), change_vs_baseline (%), orders (baseline -> this week), aov (Rs, last
+      week -> this week), driven_by (ORDERS, BASKET SIZE or BOTH), marketing (the relevant marketing figures,
+      last week -> this week), cause_type (DEMAND, SUPPLY_OPS, MIXED or UNKNOWN), likely_reason (one sentence
+      citing the figures), action (one concrete next step) and owner (Marketing, Store ops, CX or Category).
+      zomato_summary: a brief summary.'
     produces:
     - zomato_findings
     - zomato_summary
@@ -135,11 +138,20 @@ processes:
         from: zomato_findings
         columns: &id001
         - rank
-        - where
-        - change
+        - store
+        - trend
+        - sales_baseline
+        - sales_last_week
+        - sales_this_week
+        - change_vs_baseline
+        - orders
+        - aov
+        - driven_by
+        - marketing
         - cause_type
-        - likely_cause
-        - suggested_action
+        - likely_reason
+        - action
+        - owner
     - title: Zomato summary
       views:
       - view: markdown
@@ -156,16 +168,16 @@ processes:
       source_table: V_SALES_GAP_ZOMATO_MKT
       columns:
       - STORE_NAME
+      - CAMPAIGNS
+      - AD_TYPE
+      - TARGETING
+      - SEGMENTS
       - SPEND_DAY_CUR
       - SPEND_DAY_PREV
-      - AD_SALES_DAY_CUR
-      - AD_SALES_DAY_PREV
       - ROI_CUR
       - ROI_PREV
       - BUDGET_USED_CUR
       - BUDGET_USED_PREV
-      - AD_IMPR_DAY_CUR
-      - AD_IMPR_DAY_PREV
       - AD_ORD_DAY_CUR
       - AD_ORD_DAY_PREV
       - ADS_CTR_CUR
@@ -185,23 +197,26 @@ processes:
       limit: 50
       required: true
       as: marketing_input
-    instruction: 'Explain what moved this week for Zomato marketing at each store, and why.
+    instruction: 'Assess the effectiveness of Zomato marketing at each store and identify the likely causes
+      of change.
 
-      `marketing_input` has one row per Zomato store (plus ''All stores''). *_CUR is the latest week,
-      *_PREV the week before and *_BASE the 4-week average, all scaled to the same number of days, so
-      they compare directly. Here CUR/PREV are the latest marketing week vs the one before, and there
-      is no BASE. *_DAY values are per day. ROI = ad sales / ad spend; BUDGET_USED = ad spend vs booked
-      budget, %; ADS_* is the ad funnel and the rest is the whole restaurant; CTR = clicks / impressions,
-      %; M2O = orders / menu opens, %.
+      `marketing_input` holds one row per Zomato store, plus an "All stores" row, including the campaign
+      running this week (AD_TYPE, TARGETING, SEGMENTS). _CUR is the latest marketing week and _PREV the
+      preceding week; there is no baseline. _DAY values are per day. ROI is ad sales divided by ad spend;
+      BUDGET_USED is ad spend as a % of booked budget; ADS_ columns describe the ad funnel and the others
+      the whole restaurant; CTR is clicks divided by impressions (%); M2O is orders divided by menu opens
+      (%).
 
-      Work out the changes yourself from these columns. Don''t make anything up, especially numbers: only
-      use figures from `marketing_input` or simple arithmetic on them, and show the figures you used.
-      Only cite causes you can see in the rows.
+      Derive all changes from these columns. Use only figures present in `marketing_input` or obtained
+      from them by simple arithmetic, cite the figures used, and attribute a cause only where the data
+      supports it.
 
-      Return both inside "outputs": marketing_findings = a list of (rank, where, change, cause_type, likely_cause,
-      suggested_action) for the rows that matter most (up to 8), and marketing_summary = a short summary.
-      `change` is short text such as "<x>% vs baseline, orders <y>%"; cause_type is DEMAND, SUPPLY_OPS,
-      MIXED or UNKNOWN.'
+      Return both results inside "outputs". marketing_findings: up to 8 rows for the most significant
+      moves, each with rank (1 = most important), store, campaign (from AD_TYPE), segments (from SEGMENTS),
+      targeting (from TARGETING); spend_per_day (Rs), budget_used (%), roi, impressions_per_day, ad_conversion
+      (ADS_M2O %), store_conversion (M2O %) and orders_per_day, each as last week -> this week; verdict
+      (SCALE, KEEP, FIX or CUT), likely_reason (one sentence citing the figures) and action (one concrete
+      next step). marketing_summary: a brief summary.'
     produces:
     - marketing_findings
     - marketing_summary
@@ -210,7 +225,22 @@ processes:
       views:
       - view: table
         from: marketing_findings
-        columns: *id001
+        columns: &id002
+        - rank
+        - store
+        - campaign
+        - segments
+        - targeting
+        - spend_per_day
+        - budget_used
+        - roi
+        - impressions_per_day
+        - ad_conversion
+        - store_conversion
+        - orders_per_day
+        - verdict
+        - likely_reason
+        - action
     - title: Marketing summary
       views:
       - view: markdown
@@ -257,21 +287,26 @@ processes:
       limit: 50
       required: true
       as: swiggy_rows
-    instruction: 'Explain what moved this week for each store on Swiggy and other channels, and why.
+    instruction: 'Analyse this week''s sales for each store on Swiggy and other channels and identify
+      the likely causes.
 
-      `swiggy_rows` has one row per store x channel (plus ''All stores'' = the channel total). *_CUR is
-      the latest week, *_PREV the week before and *_BASE the 4-week average, all scaled to the same number
-      of days, so they compare directly. There is no Swiggy marketing data. COMPLAINTS, REVIEWS, RATING
-      and RAIN_DAYS are for the store; OCCASIONS are holidays in each week.
+      `swiggy_rows` holds one row per store and channel, plus an "All stores" row for each channel total.
+      Suffixes: _CUR is the latest week, _PREV the preceding week and _BASE the 4-week average; all are
+      scaled to the same number of days and are directly comparable. No Swiggy marketing data is available.
+      COMPLAINTS, REVIEWS, RATING and RAIN_DAYS are store-level; OCCASIONS lists the holidays in each
+      week.
 
-      Work out the changes yourself from these columns. Don''t make anything up, especially numbers: only
-      use figures from `swiggy_rows` or simple arithmetic on them, and show the figures you used. Only
-      cite causes you can see in the rows.
+      Derive all changes from these columns. Use only figures present in `swiggy_rows` or obtained from
+      them by simple arithmetic, cite the figures used, and attribute a cause only where the data supports
+      it.
 
-      Return both inside "outputs": swiggy_findings = a list of (rank, where, change, cause_type, likely_cause,
-      suggested_action) for the rows that matter most (up to 8), and swiggy_summary = a short summary.
-      `change` is short text such as "<x>% vs baseline, orders <y>%"; cause_type is DEMAND, SUPPLY_OPS,
-      MIXED or UNKNOWN.'
+      Return both results inside "outputs". swiggy_findings: up to 8 rows for the most significant moves,
+      each with rank (1 = most important), store, channel (Swiggy or Other), trend (UP, DOWN or FLAT),
+      sales_baseline, sales_last_week and sales_this_week (Rs), change_vs_baseline (%), orders (baseline
+      -> this week), aov (Rs, last week -> this week), driven_by (ORDERS, BASKET SIZE or BOTH), cause_type
+      (DEMAND, SUPPLY_OPS, MIXED or UNKNOWN), likely_reason (one sentence citing the figures), action
+      (one concrete next step) and owner (Marketing, Store ops, CX or Category). swiggy_summary: a brief
+      summary.'
     produces:
     - swiggy_findings
     - swiggy_summary
@@ -280,7 +315,22 @@ processes:
       views:
       - view: table
         from: swiggy_findings
-        columns: *id001
+        columns: &id003
+        - rank
+        - store
+        - channel
+        - trend
+        - sales_baseline
+        - sales_last_week
+        - sales_this_week
+        - change_vs_baseline
+        - orders
+        - aov
+        - driven_by
+        - cause_type
+        - likely_reason
+        - action
+        - owner
     - title: Swiggy summary
       views:
       - view: markdown
@@ -315,21 +365,23 @@ processes:
       limit: 100
       required: true
       as: product_input
-    instruction: 'Explain what moved this week for each product, and why.
+    instruction: 'Analyse this week''s sales for each product across all stores and channels and identify
+      the likely causes.
 
-      `product_input` has one row per product across all stores and channels. *_CUR is the latest week,
-      *_PREV the week before and *_BASE the 4-week average, all scaled to the same number of days, so
-      they compare directly. UNITS are item quantities; COMPLAINTS are complaints linked to the product
-      through the order.
+      `product_input` holds one row per product. Suffixes: _CUR is the latest week, _PREV the preceding
+      week and _BASE the 4-week average; all are scaled to the same number of days and are directly comparable.
+      UNITS are item quantities sold; COMPLAINTS are complaints linked to the product through the order.
 
-      Work out the changes yourself from these columns. Don''t make anything up, especially numbers: only
-      use figures from `product_input` or simple arithmetic on them, and show the figures you used. Only
-      cite causes you can see in the rows.
+      Derive all changes from these columns. Use only figures present in `product_input` or obtained from
+      them by simple arithmetic, cite the figures used, and attribute a cause only where the data supports
+      it.
 
-      Return both inside "outputs": product_findings = a list of (rank, where, change, cause_type, likely_cause,
-      suggested_action) for the rows that matter most (up to 8), and product_summary = a short summary.
-      `change` is short text such as "<x>% vs baseline, units <y>%"; cause_type is DEMAND, SUPPLY_OPS,
-      MIXED or UNKNOWN.'
+      Return both results inside "outputs". product_findings: up to 8 rows for the most significant moves,
+      each with rank (1 = most important), product, trend (UP, DOWN or FLAT), sales_baseline and sales_this_week
+      (Rs), change_vs_baseline (%), units (baseline -> this week), complaints (last week -> this week),
+      cause_type (DEMAND, SUPPLY_OPS, MIXED or UNKNOWN), likely_reason (one sentence citing the figures),
+      action (one concrete next step) and owner (Marketing, Store ops, CX or Category). product_summary:
+      a brief summary.'
     produces:
     - product_findings
     - product_summary
@@ -338,7 +390,19 @@ processes:
       views:
       - view: table
         from: product_findings
-        columns: *id001
+        columns: &id004
+        - rank
+        - product
+        - trend
+        - sales_baseline
+        - sales_this_week
+        - change_vs_baseline
+        - units
+        - complaints
+        - cause_type
+        - likely_reason
+        - action
+        - owner
     - title: Product summary
       views:
       - view: markdown
@@ -350,10 +414,10 @@ processes:
     - product_performance
     description: The sales head reviews the week's findings and approves sending the brief to sales, ops
       and marketing, or holds it.
-    instruction: 'Review the week''s findings: Zomato store performance, Zomato marketing effectiveness,
-      Swiggy and other channels, and product performance. Recommend APPROVE to send the weekly sales brief
-      so the gaps are followed up in writing, or REJECT if nothing moved. Keep the reasoning short and
-      name the one or two most urgent gaps.'
+    instruction: Review the findings on Zomato store performance, Zomato marketing effectiveness, Swiggy
+      and other channels, and product performance. Recommend APPROVE to issue the weekly sales brief so
+      that the week's movements are followed up in writing, or REJECT if no material movement was found.
+      Give the reasoning briefly and name the one or two most urgent issues.
     decision_options:
     - APPROVE
     - REJECT
@@ -369,78 +433,17 @@ processes:
       views:
       - view: table
         from: marketing_findings
-        columns: *id001
+        columns: *id002
     - title: 'Swiggy and other channels: store performance'
       views:
       - view: table
         from: swiggy_findings
-        columns: *id001
+        columns: *id003
     - title: Product performance
       views:
       - view: table
         from: product_findings
-        columns: *id001
-    - title: All stores x channels (raw)
-      summary: Latest week vs the week before and the 4-week baseline, same number of days
-      views:
-      - view: table
-        from: store_rows
-        columns:
-        - STORE_NAME
-        - CHANNEL
-        - SALES_CUR
-        - SALES_PREV
-        - SALES_BASE
-        - ORDERS_CUR
-        - ORDERS_PREV
-        - ORDERS_BASE
-        - AOV_CUR
-        - AOV_PREV
-        - SPEND_DAY_CUR
-        - ROI_CUR
-        - M2O_CUR
-        - COMPLAINTS_CUR
-        - RATING_CUR
-        - RAIN_DAYS_CUR
-        - OCCASIONS_CUR
-        - DAYS_CUR
-    - title: Zomato marketing funnel (raw)
-      summary: Latest marketing week vs the one before, per loaded day
-      views:
-      - view: table
-        from: marketing_rows
-        columns:
-        - STORE_NAME
-        - SPEND_DAY_CUR
-        - SPEND_DAY_PREV
-        - ROI_CUR
-        - ROI_PREV
-        - BUDGET_USED_CUR
-        - IMPR_DAY_CUR
-        - IMPR_DAY_PREV
-        - OPENS_DAY_CUR
-        - OPENS_DAY_PREV
-        - M2O_CUR
-        - M2O_PREV
-        - ADS_M2O_CUR
-        - ADS_M2O_PREV
-        - MKT_DAYS_CUR
-        - MKT_WEEK_END
-    - title: All products (raw)
-      summary: Hampers and gift boxes (unmapped items) left out
-      views:
-      - view: table
-        from: product_rows
-        columns:
-        - ITEM_NAME
-        - SALES_CUR
-        - SALES_PREV
-        - SALES_BASE
-        - UNITS_CUR
-        - UNITS_PREV
-        - UNITS_BASE
-        - COMPLAINTS_CUR
-        - COMPLAINTS_PREV
+        columns: *id004
   - id: send_weekly_brief
     name: Send weekly sales brief
     type: notify
@@ -471,15 +474,15 @@ processes:
             records: '{{zomato_findings}}'
           - type: table
             caption: 'Zomato: marketing effectiveness'
-            columns: *id001
+            columns: *id002
             records: '{{marketing_findings}}'
           - type: table
             caption: 'Swiggy and other channels: store performance'
-            columns: *id001
+            columns: *id003
             records: '{{swiggy_findings}}'
           - type: table
             caption: Product performance
-            columns: *id001
+            columns: *id004
             records: '{{product_findings}}'
           footer_note: 'Generated automatically by the Sales Gap Diagnosis process. Latest sales week
             vs the week before and the 4-week baseline, on matched weekdays. Marketing is Zomato only.
@@ -507,33 +510,6 @@ processes:
       marketing, competitor pricing.'
     effective_from: '2026-09-29'
     context_package:
-    - key: store_rows
-      gather:
-        base:
-          entity_type: Store
-          dataset: V_SALES_GAP_STORE
-          limit: 200
-      required: false
-    - key: product_rows
-      gather:
-        base:
-          entity_type: Product
-          dataset: V_SALES_GAP_PRODUCT
-          limit: 200
-          filters:
-            combinator: AND
-            conditions:
-            - column: SKU_ID
-              op: ne
-              value: UNKNOWN
-      required: false
-    - key: marketing_rows
-      gather:
-        base:
-          entity_type: Store
-          dataset: V_SALES_GAP_ZOMATO_MKT
-          limit: 50
-      required: false
     - key: scheduled_at
       source: event
       required: false

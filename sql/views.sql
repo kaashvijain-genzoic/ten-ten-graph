@@ -1607,6 +1607,8 @@ LEFT JOIN complaints cp ON cp.K_SKU = s.K_SKU;
 --   Zomato only (Swiggy ads are not integrated). Own anchor: MAX(DATE) of marketing, which lags
 --   sales; CUR = latest 7 days, PREV = the 7 before. Marketing has whole-day gaps (no rows at all
 --   22-25 Sep 2026), so every *_DAY value is per LOADED day (MKT_DAYS_CUR / MKT_DAYS_PREV).
+--   Campaign (latest marketing week): CAMPAIGNS (count), AD_TYPE (PSP / Visit Pack / ...),
+--     TARGETING, SEGMENTS (segment names from MARKETING_SEGMENT_MASTER, e.g. "Ultra Modern").
 --   Column legend (each as _CUR and _PREV):
 --     SPEND_DAY      ad spend, Rs/day            AD_SALES_DAY   ad-attributed sales, Rs/day
 --     ROI            ad sales / ad spend         BUDGET_USED    ad spend / booked budget, %
@@ -1673,6 +1675,38 @@ t AS (
          SUM(AI_C), SUM(AI_P), SUM(AC_C), SUM(AC_P), SUM(AO_C), SUM(AO_P),
          SUM(TI_C), SUM(TI_P), SUM(OP_C), SUM(OP_P), SUM(TO_C), SUM(TO_P)
   FROM by_store
+),
+-- Campaigns running in the latest marketing week: ad type (PRODUCT_TYPE), targeting and the
+-- customer segments, named from MARKETING_SEGMENT_MASTER (MM = Modern Mix, UM = Ultra Modern)
+-- so a marketer can read them. SEGMENTS in the raw data is a comma list of codes.
+camp_rows AS (
+  SELECT scm.MASTER_STORE_ID AS K_STORE, m.CAMPAIGN_ID, m.PRODUCT_TYPE, m.TARGETING, TRIM(code) AS SEG_CODE
+  FROM `gen-lang-client-0520145261.bronze.RAW_MARKETING_DATA` m
+  CROSS JOIN mkt_anchor ma
+  JOIN `gen-lang-client-0520145261.bronze.STORE_CHANNEL_MAPPING` scm
+    ON scm.ZOMATO_ID = SAFE_CAST(m.RES_ID AS INT64)
+  LEFT JOIN UNNEST(SPLIT(IFNULL(m.SEGMENTS, ''), ',')) AS code
+  WHERE m.DATE BETWEEN DATE_SUB(ma.MA, INTERVAL 6 DAY) AND ma.MA
+),
+camp_named AS (
+  SELECT cr.*,
+         COALESCE(REGEXP_REPLACE(sm.SEGMENT_DESCRIPTION, r'\s+segment.*$', ''), NULLIF(cr.SEG_CODE, '')) AS SEG_NAME
+  FROM camp_rows cr
+  LEFT JOIN `gen-lang-client-0520145261.bronze.MARKETING_SEGMENT_MASTER` sm
+    ON sm.SEGMENT_CODE = cr.SEG_CODE AND sm.CHANNEL = 'ZOMATO'
+),
+camp AS (
+  SELECT K_STORE,
+         COUNT(DISTINCT CAMPAIGN_ID)                   AS CAMPAIGNS,
+         STRING_AGG(DISTINCT PRODUCT_TYPE, ', ')       AS AD_TYPE,
+         STRING_AGG(DISTINCT TARGETING, ', ')          AS TARGETING,
+         STRING_AGG(DISTINCT SEG_NAME, ', ')           AS SEGMENTS
+  FROM camp_named
+  GROUP BY 1
+  UNION ALL
+  SELECT 'ALL', COUNT(DISTINCT CAMPAIGN_ID), STRING_AGG(DISTINCT PRODUCT_TYPE, ', '),
+         STRING_AGG(DISTINCT TARGETING, ', '), STRING_AGG(DISTINCT SEG_NAME, ', ')
+  FROM camp_named
 )
 SELECT
   t.K_STORE                                                            AS MASTER_STORE_ID,
@@ -1680,6 +1714,10 @@ SELECT
   ma.MA                                                                AS MKT_WEEK_END,
   c.DC                                                                 AS MKT_DAYS_CUR,
   c.DP                                                                 AS MKT_DAYS_PREV,
+  cp.CAMPAIGNS,
+  cp.AD_TYPE,
+  cp.TARGETING,
+  cp.SEGMENTS,
   CAST(ROUND(SAFE_DIVIDE(t.SP_C, c.DC)) AS INT64)   AS SPEND_DAY_CUR,
   CAST(ROUND(SAFE_DIVIDE(t.SP_P, c.DP)) AS INT64)   AS SPEND_DAY_PREV,
   CAST(ROUND(SAFE_DIVIDE(t.AS_C, c.DC)) AS INT64)   AS AD_SALES_DAY_CUR,
@@ -1711,4 +1749,5 @@ SELECT
 FROM t
 CROSS JOIN mkt_cov c
 CROSS JOIN mkt_anchor ma
+LEFT JOIN camp cp ON cp.K_STORE = t.K_STORE
 LEFT JOIN `gen-lang-client-0520145261.bronze.MASTER_STORE` ms ON ms.MASTER_STORE_ID = t.K_STORE;
