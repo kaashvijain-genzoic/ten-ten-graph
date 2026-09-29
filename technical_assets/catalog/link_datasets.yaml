@@ -140,6 +140,19 @@ datasets:
     columns: [MASTER_STORE_ID, STORE_NAME, CHANNEL, WEEK_END, DAYS_CUR, SALES_CUR, SALES_PREV, SALES_BASE, ORDERS_CUR, ORDERS_PREV, ORDERS_BASE, AOV_CUR, AOV_PREV, SPEND_DAY_CUR, SPEND_DAY_PREV, ROI_CUR, ROI_PREV, IMPR_DAY_CUR, IMPR_DAY_PREV, M2O_CUR, M2O_PREV, MKT_DAYS_CUR, MKT_WEEK_END, COMPLAINTS_CUR, COMPLAINTS_PREV, REVIEWS_CUR, RATING_CUR, RAIN_DAYS_CUR, RAIN_DAYS_PREV, OCCASIONS_CUR, OCCASIONS_PREV]
 
   - entity_type: Store
+    name: Sales gap - store brief (merged)
+    description: One row per store x channel plus an 'All stores' row per channel, built from
+      V_SALES_GAP_STORE and V_SALES_GAP_ZOMATO_MKT with values packed into labelled text (sales
+      and orders base / last / now; AOV, customer signals, rain, occasions and the Zomato funnel
+      last -> now). Read by the merged store step of sales_gap_diagnosis.
+    source_table: V_SALES_GAP_STORE_BRIEF
+    connection: live_bq
+    cardinality: "1:m"
+    match:
+      - { entity_property: id, table_column: CH }
+    columns: [MASTER_STORE_ID, STORE, CH, WEEK_END, SALES_CUR, SALES_BASE, SALES, ORDERS, AOV, CX, RAIN, OCC, MKT]
+
+  - entity_type: Store
     name: Sales gap - Zomato marketing funnel
     description: Full Zomato ad funnel per Zomato store plus an 'All stores' row, latest
       marketing week vs the week before, per loaded day. Spend, ad sales, ROI, budget used,

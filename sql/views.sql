@@ -1268,7 +1268,8 @@ FROM `gen-lang-client-0520145261.ctx_upside_master_data.MAP_PRODUCT_CHANNEL` m
 JOIN `gen-lang-client-0520145261.ctx_upside_master_data.DIM_CHANNEL` c USING (CHANNEL_ID);
 
 -- ============================================================================================
--- Sales-gap diagnosis (processes/sales_gap_diagnosis.yaml) — THREE raw views.
+-- Sales-gap diagnosis (processes/sales_gap_diagnosis.yaml) — three raw views, plus
+-- V_SALES_GAP_STORE_BRIEF (the merged store table, built from two of them).
 --
 -- The views hold RAW FACTS only. They do not flag, score or explain anything: the agent in
 -- each diagnose step reads the rows and decides what moved and why. Deliberately NOT here:
@@ -1751,3 +1752,59 @@ CROSS JOIN mkt_cov c
 CROSS JOIN mkt_anchor ma
 LEFT JOIN camp cp ON cp.K_STORE = t.K_STORE
 LEFT JOIN `gen-lang-client-0520145261.bronze.MASTER_STORE` ms ON ms.MASTER_STORE_ID = t.K_STORE;
+
+
+-- --------------------------------------------------------------------------------------------
+-- V_SALES_GAP_STORE_BRIEF — the merged store table for the sales-gap store step.
+--   One row per store x channel (Zomato, Swiggy, Other), plus an 'All stores' row per channel,
+--   built ONLY from V_SALES_GAP_STORE and V_SALES_GAP_ZOMATO_MKT (no new maths, no flags).
+--   Values are PACKED into labelled text so a step can read every mover in one fetch: column
+--   names repeat on every row and were most of the payload.
+--     SALES / ORDERS  "base X / last Y / now Z"   (4-week average, last week, this week; all on
+--                                                   the same number of trading days)
+--     AOV, CX, RAIN, OCC, MKT  "last -> now"
+--     MKT  Zomato rows: campaign type and the funnel (spend/day, ROI, store M2O, ad M2O, budget
+--          used, impressions/day), latest marketing week vs the one before.
+--          Swiggy rows: 'No Swiggy marketing data'. Other rows: 'No marketing data'.
+--   SALES_CUR and SALES_BASE stay as numbers so the question can filter (>= 15% move, baseline
+--   >= Rs 2,000) and sort (rupee change) on them without returning them.
+-- --------------------------------------------------------------------------------------------
+CREATE OR REPLACE VIEW `gen-lang-client-0520145261.bronze.V_SALES_GAP_STORE_BRIEF` AS
+WITH s AS (
+  SELECT * FROM `gen-lang-client-0520145261.bronze.V_SALES_GAP_STORE`
+),
+m AS (
+  SELECT * FROM `gen-lang-client-0520145261.bronze.V_SALES_GAP_ZOMATO_MKT`
+)
+SELECT
+  s.MASTER_STORE_ID,
+  s.STORE_NAME                                                          AS STORE,
+  s.CHANNEL                                                             AS CH,
+  s.WEEK_END,
+  s.SALES_CUR,
+  s.SALES_BASE,
+  FORMAT('base %d / last %d / now %d', s.SALES_BASE, s.SALES_PREV, s.SALES_CUR)        AS SALES,
+  FORMAT('base %g / last %g / now %d', s.ORDERS_BASE, s.ORDERS_PREV, s.ORDERS_CUR)     AS ORDERS,
+  FORMAT('%s -> %s', IFNULL(CAST(s.AOV_PREV AS STRING), '-'), IFNULL(CAST(s.AOV_CUR AS STRING), '-')) AS AOV,
+  FORMAT('complaints %d -> %d; rating %s; reviews %d',
+         s.COMPLAINTS_PREV, s.COMPLAINTS_CUR,
+         IFNULL(CAST(s.RATING_CUR AS STRING), '-'), s.REVIEWS_CUR)                       AS CX,
+  FORMAT('%s -> %s', IFNULL(CAST(s.RAIN_DAYS_PREV AS STRING), '-'),
+                     IFNULL(CAST(s.RAIN_DAYS_CUR AS STRING), '-'))                        AS RAIN,
+  FORMAT('%s -> %s', IFNULL(s.OCCASIONS_PREV, '-'), IFNULL(s.OCCASIONS_CUR, '-'))       AS OCC,
+  CASE
+    WHEN s.CHANNEL = 'Swiggy' THEN 'No Swiggy marketing data'
+    WHEN s.CHANNEL <> 'Zomato' THEN 'No marketing data'
+    WHEN m.MASTER_STORE_ID IS NULL THEN 'No Zomato marketing this week'
+    ELSE FORMAT('%s; spend/day %s -> %s; ROI %s -> %s; M2O %s -> %s; ad M2O %s -> %s; budget used %s -> %s; impr/day %s -> %s',
+                IFNULL(m.AD_TYPE, '-'),
+                IFNULL(CAST(m.SPEND_DAY_PREV AS STRING), '-'),  IFNULL(CAST(m.SPEND_DAY_CUR AS STRING), '-'),
+                IFNULL(CAST(m.ROI_PREV AS STRING), '-'),        IFNULL(CAST(m.ROI_CUR AS STRING), '-'),
+                IFNULL(CAST(m.M2O_PREV AS STRING), '-'),        IFNULL(CAST(m.M2O_CUR AS STRING), '-'),
+                IFNULL(CAST(m.ADS_M2O_PREV AS STRING), '-'),    IFNULL(CAST(m.ADS_M2O_CUR AS STRING), '-'),
+                IFNULL(CAST(m.BUDGET_USED_PREV AS STRING), '-'),IFNULL(CAST(m.BUDGET_USED_CUR AS STRING), '-'),
+                IFNULL(CAST(m.IMPR_DAY_PREV AS STRING), '-'),   IFNULL(CAST(m.IMPR_DAY_CUR AS STRING), '-'))
+  END                                                                   AS MKT
+FROM s
+LEFT JOIN m
+  ON m.MASTER_STORE_ID = s.MASTER_STORE_ID AND s.CHANNEL = 'Zomato';
