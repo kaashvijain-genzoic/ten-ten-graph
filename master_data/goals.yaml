@@ -1,6 +1,7 @@
 version: 1
 title: Strategy to execution
-# Goal tree. Every kpi and process id referenced here must exist, or apply fails.
+# Goal tree. Every process id referenced here must exist, or apply fails. KPIs come from the
+# sales-gap semantic model and are linked to these goals in the UI once published.
 goals:
 - id: grow_weekly_sales
   name: Grow weekly sales
@@ -15,16 +16,6 @@ goals:
   - cx_team
   applies_to:
   - Store
-  kpis:
-  - kpi: DailyGrossSales
-    aggregation: avg
-    cadence: Weekly
-  - kpi: DailyOrders
-    aggregation: avg
-    cadence: Weekly
-  - kpi: AverageOrderValue
-    aggregation: avg
-    cadence: Weekly
   processes:
   - sales_gap_diagnosis
 - id: spend_marketing_where_it_returns
@@ -37,10 +28,6 @@ goals:
   owner: marketing_team
   applies_to:
   - Store
-  kpis:
-  - kpi: ZomatoROAS
-    aggregation: avg
-    cadence: Weekly
   processes:
   - sales_gap_diagnosis
 - id: keep_customers_happy
@@ -53,12 +40,5 @@ goals:
   owner: cx_team
   applies_to:
   - Store
-  kpis:
-  - kpi: WeeklyComplaints
-    aggregation: sum
-    cadence: Weekly
-  - kpi: AvgStoreRating
-    aggregation: avg
-    cadence: Weekly
   processes:
   - sales_gap_diagnosis

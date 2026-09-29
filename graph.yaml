@@ -16,13 +16,14 @@ ontology:
 # Controlled vocabularies and hierarchies.
 # Org chart and policies are intentionally absent — the seeded versions were
 # demo data and were removed; real ones land here as the customer supplies them.
-# KPIs and goals: the sales-health set behind processes/sales_gap_diagnosis.yaml.
+# Goals: the sales-health goals behind processes/sales_gap_diagnosis.yaml. KPIs are not
+# declared here: they are published from semantic_models/sales_gap_semantic_model.osi.yaml
+# (register the file, then configure/publish its metrics) and linked to goals in the UI.
 master_data:
   dir: ./master_data
   files:
     vocabularies: vocabularies.yaml
     hierarchies:  hierarchies.yaml
-    kpis:         kpis.yaml
     goals:        goals.yaml
   cache_dir: .contextgraph/refdata_cache
 

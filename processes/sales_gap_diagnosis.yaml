@@ -56,13 +56,6 @@ processes:
     type: object
   - name: marketing_findings
     type: object
-  related_kpis:
-  - DailyGrossSales
-  - DailyOrders
-  - AverageOrderValue
-  - ZomatoROAS
-  - WeeklyComplaints
-  - AvgStoreRating
   steps:
   - id: zomato_store_performance
     name: 'Zomato: store performance'

@@ -1,0 +1,271 @@
+version: "1.0"
+name: sales_gap_semantic_model
+description: "Sales-health KPIs behind the Sales Gap Diagnosis process: daily sales, daily orders, AOV, Zomato ROAS, complaints and store rating. Only the tables and columns these KPIs need."
+
+# Register notes (context-graph):
+#   * Field NAMES are the physical column names: binding a dataset selects each field name as
+#     a column, so a renamed or computed field fails materialisation.
+#   * Only dim_store has a primary_key; it is the one to bind to the Store entity. The fact
+#     tables have none, so no single column is forced as the entity join column; publish their
+#     metrics as KPIs rather than binding (binding a fact table syncs every row into entities).
+#   * Metric expressions: one dataset each, no AND / OR (nested CASE instead), no DATE() (CAST).
+#   * Windows are relative to CURRENT_DATE(), because a metric cannot take MAX(date). The sales
+#     feed runs a day behind and has missing days, so the per-day KPIs divide by the days that
+#     actually have data. Marketing lags sales by several days, so ROAS uses a 14-day window.
+
+datasets:
+  # ---------------------------------------------------------------- store (entity binding)
+  - name: dim_store
+    description: "Dark stores: one row per store."
+    source: "gen-lang-client-0520145261.bronze.MASTER_STORE"
+    primary_key: [MASTER_STORE_ID]
+    fields:
+      - name: MASTER_STORE_ID
+        description: "Store id"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: MASTER_STORE_ID
+      - name: STORE_NAME
+        description: "Store name"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: STORE_NAME
+      - name: CITY
+        description: "City"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: CITY
+
+  # ---------------------------------------------------------------- sales
+  - name: sales
+    description: "Order-line sales (silver.BUSINESS_ANALYTICS), one row per order line. Line value is UNIT_PRICE * QUANTITY; the order-level TOTAL/NET columns repeat on every line and are not used. Orders are counted by ORDER_ID. Cancelled lines are excluded."
+    source: "gen-lang-client-0520145261.silver.BUSINESS_ANALYTICS"
+    fields:
+      - name: ORDER_ID
+        description: "Order id (never null); count orders with this"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: ORDER_ID
+      - name: STORE_ID
+        description: "Store that fulfilled the order"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: STORE_ID
+      - name: CHANNEL
+        description: "Raw channel label (Zomato / Swiggy / other variants)"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: CHANNEL
+      - name: ORDER_DATE
+        description: "Order date"
+        dimension:
+          is_time: true
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: ORDER_DATE
+      - name: ORDER_STATE
+        description: "Order state; 'Cancelled' is excluded from sales"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: ORDER_STATE
+      - name: QUANTITY
+        description: "Units on the order line"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: QUANTITY
+      - name: UNIT_PRICE
+        description: "Price per unit (INR)"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: UNIT_PRICE
+
+  # ---------------------------------------------------------------- Zomato marketing
+  - name: zomato_marketing
+    description: "Daily Zomato ad-campaign performance per restaurant (Zomato only). RES_ID is the Zomato restaurant id; reach the store via store_channel_mapping."
+    source: "gen-lang-client-0520145261.bronze.RAW_MARKETING_DATA"
+    fields:
+      - name: DATE
+        description: "Performance date"
+        dimension:
+          is_time: true
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: DATE
+      - name: RES_ID
+        description: "Zomato restaurant id (STRING)"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: RES_ID
+      - name: AD_SPEND_RS
+        description: "Ad spend (INR)"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: AD_SPEND_RS
+      - name: AD_SALES_RS
+        description: "Ad-attributed sales (INR)"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: AD_SALES_RS
+
+  - name: store_channel_mapping
+    description: "Maps each store to its Zomato restaurant id. ZOMATO_ID is INT64 while marketing RES_ID is STRING: join with CAST(RES_ID AS INT64) = ZOMATO_ID."
+    source: "gen-lang-client-0520145261.bronze.STORE_CHANNEL_MAPPING"
+    fields:
+      - name: MASTER_STORE_ID
+        description: "Store id"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: MASTER_STORE_ID
+      - name: ZOMATO_ID
+        description: "Zomato restaurant id (INT64)"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: ZOMATO_ID
+
+  # ---------------------------------------------------------------- customer voice
+  - name: customer_complaints
+    description: "Customer complaint events per store, one row per complained order. Count complaints by ORDER_ID (EVENT_ID is mostly null)."
+    source: "gen-lang-client-0520145261.bronze.CUSTOMER_COMPLAINT_EVENTS"
+    fields:
+      - name: ORDER_ID
+        description: "Complained order id"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: ORDER_ID
+      - name: MASTER_STORE_ID
+        description: "Store"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: MASTER_STORE_ID
+      - name: COMPLAINT_RECEIVED_AT
+        description: "When the complaint was received"
+        dimension:
+          is_time: true
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: COMPLAINT_RECEIVED_AT
+
+  - name: customer_reviews
+    description: "Customer reviews with star rating per store (Zomato). A few reviews appear twice with the same REVIEW_ID."
+    source: "gen-lang-client-0520145261.bronze.CUSTOMER_REVIEW_EVENTS"
+    fields:
+      - name: REVIEW_ID
+        description: "Review id"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: REVIEW_ID
+      - name: MASTER_STORE_ID
+        description: "Store"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: MASTER_STORE_ID
+      - name: STAR_RATING
+        description: "Star rating, 1 to 5"
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: STAR_RATING
+      - name: REVIEW_DATE
+        description: "Review date"
+        dimension:
+          is_time: true
+        expression:
+          dialects:
+            - dialect: ANSI_SQL
+              expression: REVIEW_DATE
+
+metrics:
+  - name: daily_gross_sales
+    description: "Average gross item sales per trading day over the last 7 days (INR, before discounts, cancelled orders excluded), averaged over days that have data. Target >= 50,000. Higher is better."
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "ROUND(SUM(CASE WHEN sales.ORDER_DATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) THEN CASE WHEN sales.ORDER_STATE <> 'Cancelled' THEN sales.UNIT_PRICE * sales.QUANTITY ELSE 0 END ELSE 0 END) / NULLIF(COUNT(DISTINCT CASE WHEN sales.ORDER_DATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) THEN sales.ORDER_DATE END), 0), 0)"
+
+  - name: daily_orders
+    description: "Average non-cancelled orders per trading day over the last 7 days, averaged over days that have data. Target >= 65. Higher is better."
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "ROUND(COUNT(DISTINCT CASE WHEN sales.ORDER_DATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) THEN CASE WHEN sales.ORDER_STATE <> 'Cancelled' THEN sales.ORDER_ID END END) / NULLIF(COUNT(DISTINCT CASE WHEN sales.ORDER_DATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) THEN sales.ORDER_DATE END), 0), 1)"
+
+  - name: average_order_value
+    description: "Gross item sales divided by non-cancelled orders over the last 7 days (INR, before discounts). Target >= 750. Higher is better."
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "ROUND(SUM(CASE WHEN sales.ORDER_DATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) THEN CASE WHEN sales.ORDER_STATE <> 'Cancelled' THEN sales.UNIT_PRICE * sales.QUANTITY ELSE 0 END ELSE 0 END) / NULLIF(COUNT(DISTINCT CASE WHEN sales.ORDER_DATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) THEN CASE WHEN sales.ORDER_STATE <> 'Cancelled' THEN sales.ORDER_ID END END), 0), 0)"
+
+  - name: zomato_roas
+    description: "Zomato ad-attributed sales divided by Zomato ad spend over the last 14 days (marketing data lags sales, so 7 days can be empty). Zomato only. Target >= 2.0. Higher is better."
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "ROUND(SUM(CASE WHEN zomato_marketing.DATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY) THEN zomato_marketing.AD_SALES_RS ELSE 0 END) / NULLIF(SUM(CASE WHEN zomato_marketing.DATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY) THEN zomato_marketing.AD_SPEND_RS ELSE 0 END), 0), 2)"
+
+  - name: weekly_complaints
+    description: "Distinct complained orders over the last 7 days (almost all Zomato). Target <= 3. Lower is better."
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "COUNT(DISTINCT CASE WHEN CAST(customer_complaints.COMPLAINT_RECEIVED_AT AS DATE) >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) THEN customer_complaints.ORDER_ID END)"
+
+  - name: avg_store_rating
+    description: "Average star rating over the last 30 days of reviews (Zomato). Thin data (~30 reviews a month): read it as a direction. Target >= 4.0. Higher is better."
+    expression:
+      dialects:
+        - dialect: ANSI_SQL
+          expression: "ROUND(AVG(CASE WHEN CAST(customer_reviews.REVIEW_DATE AS DATE) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) THEN customer_reviews.STAR_RATING END), 2)"
+
+relationships:
+  - name: sales_to_store
+    from: sales
+    to: dim_store
+    from_columns: [STORE_ID]
+    to_columns: [MASTER_STORE_ID]
+
+  - name: complaints_to_store
+    from: customer_complaints
+    to: dim_store
+    from_columns: [MASTER_STORE_ID]
+    to_columns: [MASTER_STORE_ID]
+
+  - name: reviews_to_store
+    from: customer_reviews
+    to: dim_store
+    from_columns: [MASTER_STORE_ID]
+    to_columns: [MASTER_STORE_ID]
+
+  - name: channel_mapping_to_store
+    from: store_channel_mapping
+    to: dim_store
+    from_columns: [MASTER_STORE_ID]
+    to_columns: [MASTER_STORE_ID]
+
+  # RES_ID is STRING and ZOMATO_ID is INT64: the join is CAST(RES_ID AS INT64) = ZOMATO_ID.
+  - name: marketing_to_channel_mapping
+    from: zomato_marketing
+    to: store_channel_mapping
+    from_columns: [RES_ID]
+    to_columns: [ZOMATO_ID]
