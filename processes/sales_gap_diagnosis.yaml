@@ -121,13 +121,16 @@ processes:
       them by simple arithmetic, cite the figures used, and attribute a cause only where the data supports
       it.
 
-      Return both results inside "outputs". zomato_findings: up to 8 rows for the most significant moves,
-      each with rank (1 = most important), store, trend (UP, DOWN or FLAT), sales_baseline, sales_last_week
-      and sales_this_week (Rs), change_vs_baseline (%), orders (baseline -> this week), aov (Rs, last
-      week -> this week), driven_by (ORDERS, BASKET SIZE or BOTH), marketing (the relevant marketing figures,
-      last week -> this week), cause_type (DEMAND, SUPPLY_OPS, MIXED or UNKNOWN), likely_reason (one sentence
-      citing the figures), action (one concrete next step) and owner (Marketing, Store ops, CX or Category).
-      zomato_summary: a brief summary.'
+      Return both results inside "outputs". zomato_findings: up to 8 objects for the most significant
+      moves, each using exactly these keys and no others: rank, store, trend, sales_baseline, sales_last_week,
+      sales_this_week, change_vs_baseline, orders, aov, driven_by, marketing, cause_type, likely_reason,
+      action, owner. Values: rank is 1 for the most important; trend is UP, DOWN or FLAT; the sales_ values
+      are in Rs; change_vs_baseline is the % change of this week vs the baseline, e.g. "-41.1%"; orders
+      is "baseline -> this week"; aov is "last week -> this week" in Rs; driven_by is ORDERS, BASKET SIZE
+      or BOTH; marketing is one line of text with the relevant marketing figures, last week -> this week;
+      cause_type is DEMAND, SUPPLY_OPS, MIXED or UNKNOWN; likely_reason is one sentence citing the figures;
+      action is one concrete next step; owner is Marketing, Store ops, CX or Category. zomato_summary:
+      a brief summary.'
     produces:
     - zomato_findings
     - zomato_summary
@@ -211,12 +214,14 @@ processes:
       from them by simple arithmetic, cite the figures used, and attribute a cause only where the data
       supports it.
 
-      Return both results inside "outputs". marketing_findings: up to 8 rows for the most significant
-      moves, each with rank (1 = most important), store, campaign (from AD_TYPE), segments (from SEGMENTS),
-      targeting (from TARGETING); spend_per_day (Rs), budget_used (%), roi, impressions_per_day, ad_conversion
-      (ADS_M2O %), store_conversion (M2O %) and orders_per_day, each as last week -> this week; verdict
-      (SCALE, KEEP, FIX or CUT), likely_reason (one sentence citing the figures) and action (one concrete
-      next step). marketing_summary: a brief summary.'
+      Return both results inside "outputs". marketing_findings: up to 8 objects for the most significant
+      moves, each using exactly these keys and no others: rank, store, campaign, segments, targeting,
+      spend_per_day, budget_used, roi, impressions_per_day, ad_conversion, store_conversion, orders_per_day,
+      verdict, likely_reason, action. Values: rank is 1 for the most important; campaign, segments and
+      targeting come from AD_TYPE, SEGMENTS and TARGETING; spend_per_day (Rs), budget_used (%), roi, impressions_per_day,
+      ad_conversion (ADS_M2O %), store_conversion (M2O %) and orders_per_day are each "last week -> this
+      week"; verdict is SCALE, KEEP, FIX or CUT; likely_reason is one sentence citing the figures; action
+      is one concrete next step. marketing_summary: a brief summary.'
     produces:
     - marketing_findings
     - marketing_summary
@@ -300,13 +305,15 @@ processes:
       them by simple arithmetic, cite the figures used, and attribute a cause only where the data supports
       it.
 
-      Return both results inside "outputs". swiggy_findings: up to 8 rows for the most significant moves,
-      each with rank (1 = most important), store, channel (Swiggy or Other), trend (UP, DOWN or FLAT),
-      sales_baseline, sales_last_week and sales_this_week (Rs), change_vs_baseline (%), orders (baseline
-      -> this week), aov (Rs, last week -> this week), driven_by (ORDERS, BASKET SIZE or BOTH), cause_type
-      (DEMAND, SUPPLY_OPS, MIXED or UNKNOWN), likely_reason (one sentence citing the figures), action
-      (one concrete next step) and owner (Marketing, Store ops, CX or Category). swiggy_summary: a brief
-      summary.'
+      Return both results inside "outputs". swiggy_findings: up to 8 objects for the most significant
+      moves, each using exactly these keys and no others: rank, store, channel, trend, sales_baseline,
+      sales_last_week, sales_this_week, change_vs_baseline, orders, aov, driven_by, cause_type, likely_reason,
+      action, owner. Values: rank is 1 for the most important; channel is Swiggy or Other; trend is UP,
+      DOWN or FLAT; the sales_ values are in Rs; change_vs_baseline is the % change of this week vs the
+      baseline, e.g. "-41.1%"; orders is "baseline -> this week"; aov is "last week -> this week" in Rs;
+      driven_by is ORDERS, BASKET SIZE or BOTH; cause_type is DEMAND, SUPPLY_OPS, MIXED or UNKNOWN; likely_reason
+      is one sentence citing the figures; action is one concrete next step; owner is Marketing, Store
+      ops, CX or Category. swiggy_summary: a brief summary.'
     produces:
     - swiggy_findings
     - swiggy_summary
@@ -376,12 +383,14 @@ processes:
       them by simple arithmetic, cite the figures used, and attribute a cause only where the data supports
       it.
 
-      Return both results inside "outputs". product_findings: up to 8 rows for the most significant moves,
-      each with rank (1 = most important), product, trend (UP, DOWN or FLAT), sales_baseline and sales_this_week
-      (Rs), change_vs_baseline (%), units (baseline -> this week), complaints (last week -> this week),
-      cause_type (DEMAND, SUPPLY_OPS, MIXED or UNKNOWN), likely_reason (one sentence citing the figures),
-      action (one concrete next step) and owner (Marketing, Store ops, CX or Category). product_summary:
-      a brief summary.'
+      Return both results inside "outputs". product_findings: up to 8 objects for the most significant
+      moves, each using exactly these keys and no others: rank, product, trend, sales_baseline, sales_this_week,
+      change_vs_baseline, units, complaints, cause_type, likely_reason, action, owner. Values: rank is
+      1 for the most important; trend is UP, DOWN or FLAT; the sales_ values are in Rs; change_vs_baseline
+      is the % change of this week vs the baseline, e.g. "-41.1%"; units is "baseline -> this week"; complaints
+      is "last week -> this week"; cause_type is DEMAND, SUPPLY_OPS, MIXED or UNKNOWN; likely_reason is
+      one sentence citing the figures; action is one concrete next step; owner is Marketing, Store ops,
+      CX or Category. product_summary: a brief summary.'
     produces:
     - product_findings
     - product_summary
